@@ -16,7 +16,7 @@ img_height = 224
 img_width = 224
 num_classes = 361
 batch_size = 32
-epochs = 50
+epochs = 100
 learning_rate = 0.00005
 
 def angular_distance_compute(a1, a2):
