@@ -1,5 +1,5 @@
-# Machine-Learning-based-Sound-Source-Localization
-Article Title：Application of CMOR CoAtNet Method in Direction of Arrival (DOA) Estimation
+# Application of the CMOR-CoAtNet Method in DOA Estimation
+Article Title：Application of the CMOR-CoAtNet Method in DOA Estimation
 
 Data Sources ： SLoClas DATABASE
                 https://bidishasharma.github.io/SLoClass/
