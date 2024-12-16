@@ -11,12 +11,12 @@ from tabulate import tabulate
 import re
 import numpy as np
 import pandas as pd
-# 设置一些基本参数
+
 img_height = 224
 img_width = 224
 num_classes = 360
 batch_size = 32
-epochs = 50
+epochs = 100
 learning_rate = 0.0001
 
 def angular_distance_compute(a1, a2):
@@ -25,24 +25,22 @@ def angular_distance_compute(a1, a2):
 
 def MAEeval(preds, labels):
     """
-    计算 MAE 和 ACC
-    :param preds: 模型的预测输出（类别索引）
-    :param labels: 真实标签（类别索引）
-    :return: 平均绝对误差 (MAE) 和正确率 (ACC, 阈值15°以内)
+    Calculate MAE and ACC
+    :param preds: Model predictions (class indices)
+    :param labels: Ground truth labels (class indices)
+    :return: Mean Absolute Error (MAE) and Accuracy (ACC, within a threshold of 5°)
     """
     errors = []
     for pred, label in zip(preds, labels):
-        ang_error = angular_distance_compute(pred.item(), label.item())  # 计算角度误差
+        ang_error = angular_distance_compute(pred.item(), label.item())  # Calculate angular error
         errors.append(ang_error)
 
-    # 计算 MAE 和 ACC
-    mae = np.mean(errors)  # 平均绝对误差
-    acc = np.mean([error <= 5 for error in errors])  # 阈值5度内的正确率
+    # Calculate MAE and ACC
+    mae = np.mean(errors)  # Mean Absolute Error
+    acc = np.mean([error <= 5 for error in errors])  # Accuracy within a threshold of 5 degrees
     return mae, acc
 
-
-
-# 数据转换和增广
+# Data transformations and augmentations
 data_transforms = {
     'train': transforms.Compose([
         transforms.Resize((img_height, img_width)),
@@ -55,6 +53,8 @@ data_transforms = {
         transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
     ]),
 }
+
+# Dataset definition
 class SimulatedDataset(Dataset):
     def __init__(self, data_dir, transform=None):
         self.data = []
@@ -93,7 +93,7 @@ class SimulatedDataset(Dataset):
                     image = self.transform(image)
                 loaded_images.append(image)
         #images = torch.stack(loaded_images)
-        images = torch.cat(loaded_images, dim=0)  # 拼接为 (channels=12, height, width)
+        images = torch.cat(loaded_images, dim=0)
         label = torch.tensor(label, dtype=torch.long)
         return images, label
 
@@ -137,7 +137,7 @@ class RealDataset(Dataset):
                     image = self.transform(image)
                 loaded_images.append(image)
         #images = torch.stack(loaded_images)
-        images = torch.cat(loaded_images, dim=0)  # 拼接为 (channels=12, height, width)
+        images = torch.cat(loaded_images, dim=0)
         label = torch.tensor(label, dtype=torch.long)
         return images, label
 
@@ -179,7 +179,7 @@ class RealDataset(Dataset):
 # class AttentionBlock(nn.Module):
 #     def __init__(self, dim, num_heads, mlp_ratio=4.0):
 #         super().__init__()
-#         self.norm1 = nn.LayerNorm(dim)  # 使用 dim 参数作为标准化维度
+#         self.norm1 = nn.LayerNorm(dim)
 #         self.attn = nn.MultiheadAttention(dim, num_heads, batch_first=True)
 #         self.norm2 = nn.LayerNorm(dim)
 #         self.mlp = nn.Sequential(
@@ -206,7 +206,7 @@ class RealDataset(Dataset):
 #     def __init__(self, num_classes):
 #         super().__init__()
 #         self.s0 = nn.Sequential(
-#             ConvBnAct(9, 64, stride=2),  # 输入调整为 9 通道
+#             ConvBnAct(9, 64, stride=2),
 #             DepthwiseSeparableConv(64, 128, stride=2),
 #         )
 #         self.s1 = nn.Sequential(
@@ -220,7 +220,7 @@ class RealDataset(Dataset):
 #         ])
 #
 #         self.pool = nn.AdaptiveAvgPool2d((1, 1))
-#         self.fc = nn.Linear(512, num_classes)  # 最后一层通道数为 channels[3]
+#         self.fc = nn.Linear(512, num_classes)
 #
 #     def forward(self, x):
 #         x = self.s0(x)
@@ -238,42 +238,42 @@ import timm
 import torch.nn as nn
 
 class CoAtNet(nn.Module):
-    def __init__(self,  num_classes):
+    def __init__(self, num_classes):
         super(CoAtNet, self).__init__()
 
-        # 加载预训练的 CoAtNet 模型
+        # Load the pretrained CoAtNet model
         self.base_model = timm.create_model('coatnet_1_224', pretrained=False)
 
-        # 替换第一层卷积层以适配自定义输入通道数
-        # 定位 stem 或 conv1 层，具体取决于模型结构
+        # Replace the first convolutional layer to adapt to custom input channel count
+        # Locate the stem or conv1 layer, depending on the model structure
         first_conv_name = None
         for name, module in self.base_model.named_modules():
-            if isinstance(module, nn.Conv2d):  # 找到第一个 Conv2d 层
+            if isinstance(module, nn.Conv2d):  # Find the first Conv2d layer
                 first_conv_name = name
                 break
 
         if first_conv_name is not None:
-            # 提取原始卷积层
+            # Extract the original convolutional layer
             original_conv = dict(self.base_model.named_modules())[first_conv_name]
-            # 替换为新卷积层
+            # Replace with a new convolutional layer
             new_conv = nn.Conv2d(
-                9,  # 自定义输入通道数
+                9,  # Custom input channel count
                 out_channels=original_conv.out_channels,
                 kernel_size=original_conv.kernel_size,
                 stride=original_conv.stride,
                 padding=original_conv.padding,
                 bias=original_conv.bias
             )
-            # 替换模块
+            # Replace the module
             parent, _, attr = first_conv_name.rpartition(".")
-            if parent:  # 如果父模块存在
+            if parent:  # If the parent module exists
                 setattr(dict(self.base_model.named_modules())[parent], attr, new_conv)
-            else:  # 否则直接在模型根部替换
+            else:  # Otherwise, replace it directly in the root of the model
                 setattr(self.base_model, first_conv_name, new_conv)
         else:
             raise AttributeError("Could not locate the first convolutional layer in the model.")
 
-        # 替换分类头以适配自定义类别数
+        # Replace the classification head to adapt to the custom number of classes
         if hasattr(self.base_model, 'fc'):
             self.base_model.fc = nn.Linear(self.base_model.fc.in_features, num_classes)
         elif hasattr(self.base_model, 'classifier'):
@@ -289,7 +289,7 @@ def save_results_to_excel(file_path, epochs, train_losses, val_losses,
                           train_accuracies, val_accuracies,
                           train_accuracies5, val_accuracies5,
                           train_maes, val_maes):
-    # 创建 DataFrame
+    # Create a DataFrame
     data = {
         "Epoch": epochs,
         "Train Loss": train_losses,
@@ -303,14 +303,14 @@ def save_results_to_excel(file_path, epochs, train_losses, val_losses,
     }
     df = pd.DataFrame(data)
 
-    # 保存到 Excel 文件
+    # Save to an Excel file
     df.to_excel(file_path, index=False)
     print(f"Results saved to {file_path}")
 
 def save_results_to_excel1(file_path, epochs, train_losses, val_losses,
                           train_accuracies, val_accuracies,
                           train_maes, val_maes):
-    # 创建 DataFrame
+    # Create a DataFrame
     data = {
         "Epoch": epochs,
         "Train Loss": train_losses,
@@ -322,21 +322,23 @@ def save_results_to_excel1(file_path, epochs, train_losses, val_losses,
     }
     df = pd.DataFrame(data)
 
-    # 保存到 Excel 文件
+    # Save to an Excel file
     df.to_excel(file_path, index=False)
     print(f"Results saved to {file_path}")
 
+
 def train_model(model, train_loader, val_loader, criterion, optimizer, device, num_epochs=50, threshold=None):
-    """
-    训练模型
-    :param model: 待训练的模型
-    :param train_loader: 训练数据加载器
-    :param criterion: 损失函数
-    :param optimizer: 优化器
-    :param device: 运行设备（CPU 或 GPU）
-    :param num_epochs: 训练轮数
-    :param threshold: 阈值（用于计算准确率），如果为 None，则不计算阈值内的准确率
-    :return: 训练损失、MAE、准确率记录
+   """
+    Train the model.
+    :param model: The model to be trained.
+    :param train_loader: Training data loader.
+    :param val_loader: Validation data loader.
+    :param criterion: Loss function.
+    :param optimizer: Optimizer.
+    :param device: Device to run on (CPU or GPU).
+    :param num_epochs: Number of training epochs.
+    :param threshold: Threshold (used for calculating accuracy). If None, threshold accuracy is not calculated.
+    :return: Training loss, MAE, and accuracy records.
     """
     model.train()
     train_losses = []
@@ -347,7 +349,7 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, device, n
     val_maes = []
     val_accuracies = []
     val_threshold_accuracies = []
-    scaler = torch.amp.GradScaler()  # 定义一个scaler
+    scaler = torch.amp.GradScaler()  # Define a scaler
 
     for epoch in range(num_epochs):
         running_loss = 0.0
@@ -366,7 +368,7 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, device, n
             # loss.backward()
             # optimizer.step()
 
-            with torch.amp.autocast('cuda'):  # 使用混合精度
+            with torch.amp.autocast('cuda'):  # Use mixed precision
                 outputs = model(inputs)
                 loss = criterion(outputs, labels)
             scaler.scale(loss).backward()
@@ -378,7 +380,6 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, device, n
             total += labels.size(0)
             correct += (preds == labels).sum().item()
 
-            # 计算 MAE 和阈值内准确率
             epoch_mae, _ = MAEeval(preds, labels)
             mae += epoch_mae
 
@@ -386,7 +387,6 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, device, n
                 _, epoch_threshold_acc = MAEeval(preds, labels)
                 threshold_acc += epoch_threshold_acc
 
-            # 更新进度条
             progress_bar.set_postfix({'loss': loss.item()})
 
         epoch_loss = running_loss / len(train_loader.dataset)
@@ -407,7 +407,7 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, device, n
         else:
             print(f"Epoch {epoch + 1}/{num_epochs} - Loss: {epoch_loss:.4f}, "
                   f"MAE: {epoch_mae:.4f}, Accuracy: {epoch_acc:.4f}")
-        # 验证模型
+        # Validate the model
         val_loss, val_mae, val_acc, val_threshold_acc = evaluate_model(
             model, val_loader, criterion, device, threshold=threshold
         )
@@ -421,14 +421,14 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, device, n
 
 
 def evaluate_model(model, val_loader, criterion, device, threshold=None):
-    """
-    评估模型
-    :param model: 待评估的模型
-    :param val_loader: 验证数据加载器
-    :param criterion: 损失函数
-    :param device: 运行设备（CPU 或 GPU）
-    :param threshold: 阈值（用于计算准确率），如果为 None，则不计算阈值内的准确率
-    :return: 验证损失、MAE、准确率记录
+   """
+    Evaluate the model.
+    :param model: The model to be evaluated.
+    :param val_loader: Validation data loader.
+    :param criterion: Loss function.
+    :param device: Device to run on (CPU or GPU).
+    :param threshold: Threshold (used for calculating accuracy). If None, threshold accuracy is not calculated.
+    :return: Validation loss, MAE, accuracy records.
     """
     model.eval()
     val_loss = 0.0
@@ -448,7 +448,7 @@ def evaluate_model(model, val_loader, criterion, device, threshold=None):
             total += labels.size(0)
             correct += (preds == labels).sum().item()
 
-            # 计算 MAE 和阈值内准确率
+            # Calculate MAE and threshold accuracy
             epoch_mae, _ = MAEeval(preds, labels)
             mae += epoch_mae
 
@@ -469,16 +469,16 @@ def evaluate_model(model, val_loader, criterion, device, threshold=None):
 
     return val_loss, val_mae, val_acc, (val_threshold_acc if threshold is not None else None)
 
-# 训练和验证过程
+# Training and validation process
 if __name__ == "__main__":
-    # 加载仿真数据集
+    # Load simulated dataset
     simulated_dataset = SimulatedDataset('./simulated_data', transform=data_transforms['train'])
     train_size_sim = int(0.8 * len(simulated_dataset))
     val_size_sim = len(simulated_dataset) - train_size_sim
     train_dataset_sim, val_dataset_sim = random_split(simulated_dataset, [train_size_sim, val_size_sim])
     print('simulated_dataset:',len(simulated_dataset))
 
-    # 加载真实数据集
+    #Load real dataset
     real_dataset = RealDataset('./real_data5', transform=data_transforms['train'])
     print('real_dataset:',len(real_dataset))
     train_size_real = int(0.7 * len(real_dataset))
@@ -486,75 +486,71 @@ if __name__ == "__main__":
     train_dataset_real, val_dataset_real = random_split(real_dataset, [train_size_real, val_size_real])
 
 
-    # 创建数据加载器
+    # Create data loaders
     train_loader_sim = DataLoader(train_dataset_sim, batch_size=batch_size, shuffle=True, num_workers=4, pin_memory=True)
     val_loader_sim = DataLoader(val_dataset_sim, batch_size=batch_size, shuffle=False, num_workers=4, pin_memory=True)
     train_loader_real = DataLoader(train_dataset_real, batch_size=16, shuffle=True, num_workers=4, pin_memory=True)
     val_loader_real = DataLoader(val_dataset_real, batch_size=16, shuffle=False, num_workers=4, pin_memory=True)
-
-
-
-
-
-    # 初始化模型、损失函数和优化器
+    
+    # Initialize model, loss function, and optimizer
     model = CoAtNet(num_classes=num_classes)
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
 
 
-    # 打印模型参数
+    # Print model parameters
     print("Model Parameters:")
     table = []
     for name, param in model.named_parameters():
         table.append([name, param.requires_grad, param.numel()])
     print(tabulate(table, headers=["Layer (type)", "Trainable", "Param #"]))
 
-    # 使用 GPU
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model = model.to(device)
 
-    # print("Training on simulated data...")
-    # train_losses, train_maes, train_accuracies, train_threshold_accuracies, \
-    #     val_losses, val_maes, val_accuracies, val_threshold_accuracies \
-    #         =train_model(model, train_loader_sim, val_loader_sim, criterion, optimizer, device, epochs)
-    #
-    # # 保存模型
-    # torch.save(model.state_dict(), 'coatnet_simulated_model.pth')
-    # # 保存训练过程中的结果
-    # save_results_to_excel1(
-    #     file_path="coatnet_simulate_results.xlsx",
-    #     epochs=list(range(1, len(train_losses) + 1)),
-    #     train_losses=train_losses,
-    #     val_losses=val_losses,
-    #     train_accuracies=train_accuracies,
-    #     val_accuracies=val_accuracies,
-    #     train_maes=train_maes,
-    #     val_maes=val_maes
-    # )
+    print("Training on simulated data...")
+    train_losses, train_maes, train_accuracies, train_threshold_accuracies, \
+        val_losses, val_maes, val_accuracies, val_threshold_accuracies \
+            =train_model(model, train_loader_sim, val_loader_sim, criterion, optimizer, device, epochs)
+    
+    # Save model
+    torch.save(model.state_dict(), 'coatnet_simulated_model.pth')
+    # Save training results
+    save_results_to_excel1(
+        file_path="coatnet_simulate_results.xlsx",
+        epochs=list(range(1, len(train_losses) + 1)),
+        train_losses=train_losses,
+        val_losses=val_losses,
+        train_accuracies=train_accuracies,
+        val_accuracies=val_accuracies,
+        train_maes=train_maes,
+        val_maes=val_maes
+    )
 
-    # # 微调真实数据模型
+    #Fine-tune on real data model
     print("Fine-tuning on real data...")
     model.load_state_dict(torch.load('coatnet_simulated_model.pth',map_location=device,weights_only=True))
 
-    # 选择微调策略
+    # Choose fine-tuning strategy
     # for param in model.parameters():
-    #     param.requires_grad = False  # 冻结特征提取器
-    # # 假设模型的最后两层是需要解冻的层
-    # layers = list(model.children())  # 获取所有子层
-    # for layer in layers[-2:]:  # 遍历最后两层
-    #     for param in layer.parameters():  # 访问每一层的参数
-    #         param.requires_grad = True  # 解冻参数
+    #     param.requires_grad = False  # Freeze feature extractor
+    # # Assume the last two layers of the model need to be unfrozen
+    # layers = list(model.children())  # Get all sub-layers
+    # for layer in layers[-2:]:  # Traverse the last two layers
+    #     for param in layer.parameters():  # Access each parameter of the layer
+    #         param.requires_grad = True  # Unfreeze parameters
+
 
     optimizer = optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=learning_rate)
     train_losses, train_maes, train_accuracies, train_threshold_accuracies, \
         val_losses, val_maes, val_accuracies, val_threshold_accuracies\
         =train_model(model, train_loader_real, val_loader_real, criterion, optimizer, device, 100, threshold=5)
 
-    # 在真实数据上评估
+    # Evaluate on real data
     # print('Evaluate on real data...')
     # evaluate_model(model, val_loader_real, criterion, device, threshold=15)
 
-    # 保存微调过程中的结果
+    # Save fine-tuning results
     save_results_to_excel(
         file_path="coatnet_true_results.xlsx",
         epochs=list(range(1, len(train_losses) + 1)),
@@ -568,9 +564,8 @@ if __name__ == "__main__":
         val_maes=val_maes
     )
 
-    # 可视化训练过程
+    # Visualize the training process
     epochs_range = range(100)
-    # 可视化训练过程
     plt.figure(figsize=(12, 8))
     plt.subplot(2, 2, 1)
     plt.plot(epochs_range, train_losses, label='Train Loss')
@@ -579,7 +574,7 @@ if __name__ == "__main__":
     plt.title('Loss')
 
     plt.subplot(2, 2, 2)
-    plt.plot(epochs_range, train_maes, label='Train MAE')  # 适当保存每轮 MAE
+    plt.plot(epochs_range, train_maes, label='Train MAE')
     plt.plot(epochs_range, val_maes, label='Validation MAE')
     plt.legend()
     plt.title('Mean Absolute Error (MAE)')
@@ -591,7 +586,7 @@ if __name__ == "__main__":
     plt.title('Accuracy')
 
     plt.subplot(2, 2, 4)
-    plt.plot(epochs_range, train_threshold_accuracies, label='Train ACC')  # 适当保存每轮 ACC
+    plt.plot(epochs_range, train_threshold_accuracies, label='Train ACC')
     plt.plot(epochs_range, val_threshold_accuracies, label='Validation ACC')
     plt.legend()
     plt.title('Accuracy within Threshold')
