@@ -286,7 +286,8 @@ if __name__ == "__main__":
 
     # Save model
     torch.save(model.state_dict(), 'multi_cnn_sound_classification.pth')
-    # 保存训练过程中的结果
+
+    
     save_results_to_excel(
         file_path="cnn_results.xlsx",
         epochs=list(range(1, len(train_losses) + 1)),
