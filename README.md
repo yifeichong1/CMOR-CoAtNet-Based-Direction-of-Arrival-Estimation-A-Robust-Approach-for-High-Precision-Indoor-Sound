@@ -1,5 +1,5 @@
-# Application of the CMOR-CoAtNet Method in DOA Estimation
-Article Title：Application of the CMOR-CoAtNet Method in DOA Estimation
+# CMOR-CoAtNet-Based Direction of Arrival Estimation: A Robust Approach for High-Precision Indoor Sound Localization
+Article Title：CMOR-CoAtNet-Based Direction of Arrival Estimation: A Robust Approach for High-Precision Indoor Sound Localization
 
 Data Sources ： SLoClas DATABASE
                 https://bidishasharma.github.io/SLoClass/
