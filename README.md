@@ -1,5 +1,5 @@
-# CMOR-CoAtNet-Based Direction of Arrival Estimation: A Robust Approach for High-Precision Indoor Sound Localization
-Article Title：CMOR-CoAtNet-Based Direction of Arrival Estimation: A Robust Approach for High-Precision Indoor Sound Localization
+# A Complex Morlet- Convolutional Attention Network Framework for Robust Direction-of-Arrival Estimation
+Article Title：A Complex Morlet- Convolutional Attention Network Framework for Robust Direction-of-Arrival Estimation
 
 Data Sources ： SLoClas DATABASE
                 https://bidishasharma.github.io/SLoClass/
